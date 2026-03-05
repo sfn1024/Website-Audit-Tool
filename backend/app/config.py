@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
-    # Gemini API key — not used yet, but ready for Phase 2
+    # Gemini API key
     gemini_api_key: str = ""
 
     # CORS: comma-separated list of allowed origins
