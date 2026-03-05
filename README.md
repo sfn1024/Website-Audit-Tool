@@ -22,6 +22,7 @@ The project is built with a clear separation of concerns in a monorepo structure
 - **Prompt Logging**: Every interaction (system prompt, user data, and raw AI response) is logged to `prompt_logs.json` for auditability and debugging.
 
 ## ⚖️ Trade-offs & Decisions
+- ✅ **Deployment Ready**: Included `vercel.json` (frontend) and `railway.json` (backend).
 - **`httpx` over Puppeteer**: For this assessment, a lightweight HTTP client was chosen for speed and deployment simplicity. While it doesn't execute JavaScript, it covers 90% of SEO/METADATA requirements without the heavy overhead of a headless browser.
 - **Single Endpoint (`/audit`)**: All processing (scraping, metrics, and AI) happens in a single request-response cycle. This simplifies the frontend state management for an MVP, though an async task queue (like Celery/RabbitMQ) would be better for high-scale production.
 - **Plain CSS**: Opted for Vanilla CSS with variables to demonstrate strong foundational design skills and avoid the bloat of external component libraries.
