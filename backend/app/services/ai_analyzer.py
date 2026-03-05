@@ -17,10 +17,6 @@ from google.genai import types
 from app.config import settings
 from app.models import PageMetrics
 
-# ── Configure Gemini ─────────────────────────────────────────────────────────
-
-client = genai.Client(api_key=settings.gemini_api_key)
-
 # Path to the prompt log file (in the backend root directory)
 LOG_FILE = Path(__file__).resolve().parent.parent.parent / "prompt_logs.json"
 
@@ -151,7 +147,11 @@ async def analyze_page(metrics: PageMetrics, page_text: str, url: str) -> dict:
     user_prompt = _build_user_prompt(metrics, page_text)
 
     # ── Call Gemini ──────────────────────────────────────────────────────
+    if not settings.gemini_api_key:
+        raise AnalysisError("Gemini API key is not configured. Please set GEMINI_API_KEY in your environment.")
+
     try:
+        client = genai.Client(api_key=settings.gemini_api_key)
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             config=types.GenerateContentConfig(
