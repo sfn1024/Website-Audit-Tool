@@ -53,3 +53,19 @@ This document outlines the validation tests performed on the FastAPI backend (v1
 ## 4. Performance
 - **Avg. Response Time:** 1.2s – 2.5s (Network bound)
 - **Memory Usage:** Stable during concurrent scrapes.
+
+---
+
+## 5. AI Analysis Verification (Gemini 2.5 Flash)
+
+### 5.1 Real-World Audit: `https://zero-loop.netlify.app/`
+- **Result:** Pass ✅
+- **Observations:** The AI successfully grounded its insights in the 790-word page content. It correctly identified high CTA density (25 CTAs) and recommended specific H1 refinements and internal linking strategies.
+
+### 5.2 Graceful Fallback
+- **Test:** API call with invalid/mock API key.
+- **Result:** Pass ✅. System returns factual metrics with `insights: null` and logs a warning, ensuring the tool remains functional even if the AI layer fails.
+
+### 5.3 Prompt Logging
+- **Result:** Pass ✅. All prompt cycles (system, user, and raw AI response) are successfully recorded in `backend/prompt_logs.json`.
+
