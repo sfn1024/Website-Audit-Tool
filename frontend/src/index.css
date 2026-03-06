@@ -69,12 +69,18 @@ body {
 /* Form Section */
 .audit-section {
     background: var(--bg-card);
-    padding: 2.5rem;
+    padding: 1.5rem;
     border-radius: var(--radius);
     border: 1px solid var(--border);
     box-shadow: var(--shadow-sm);
     margin-bottom: 2rem;
     text-align: center;
+}
+
+@media (min-width: 768px) {
+    .audit-section {
+        padding: 2.5rem;
+    }
 }
 
 .audit-section h1 {
@@ -88,13 +94,21 @@ body {
 
 .form-group {
     display: flex;
-    gap: 0.5rem;
+    flex-direction: column;
+    gap: 0.75rem;
     max-width: 600px;
     margin: 0 auto;
 }
 
+@media (min-width: 576px) {
+    .form-group {
+        flex-direction: row;
+        gap: 0.5rem;
+    }
+}
+
 input[type="url"] {
-    flex: 1;
+    width: 100%;
     padding: 0.75rem 1rem;
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -118,7 +132,9 @@ button {
     transition: background-color 0.2s;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
+    white-space: nowrap;
 }
 
 button:hover:not(:disabled) {
