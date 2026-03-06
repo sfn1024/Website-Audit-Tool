@@ -25,14 +25,14 @@ The project is built with a clear separation of concerns in a monorepo structure
   an internal agency tool with frequent audits.
 
 ## Trade-offs & Decisions
-- **Deployment Ready**: Included `vercel.json` (frontend) and `railway.json` (backend).
+- **Deployment Ready**: Included in netlify direct deploy with manual configurations (frontend) and `railway.json` (backend).
 - **`httpx` over Puppeteer**: For this assessment, a lightweight HTTP client was chosen for speed and deployment simplicity. While it doesn't execute JavaScript, it covers 90% of SEO/METADATA requirements without the heavy overhead of a headless browser.
 - **JS-Rendered Pages (SPAs)**: Sites built with React, Vue, or 
   Angular return minimal HTML via httpx since content is rendered 
   client-side. This is a known limitation. Playwright would solve 
   this in a future iteration.
 - **Single Endpoint (`/audit`)**: All processing (scraping, metrics, and AI) happens in a single request-response cycle. This simplifies the frontend state management for an MVP, though an async task queue (like Celery/RabbitMQ) would be better for high-scale production.
-- **Plain CSS**: Opted for Vanilla CSS with variables to avoid the bloat of external component libraries.
+- **Plain CSS**: Opted for Vanilla CSS with variables to avoid the complexity of external component libraries.
 
 ## Setup & Installation
 
