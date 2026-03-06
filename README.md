@@ -66,11 +66,11 @@ The project is built with a clear separation of concerns in a monorepo structure
 **Note**: Backend .env file Structure
 ### ── Website Audit Tool — Backend Environment Variables ─────────────
 
-   # Gemini API Key
-   GEMINI_API_KEY=Gemini API KEY Here
+   ### Gemini API Key
+      GEMINI_API_KEY=Gemini API KEY Here
 
-   # CORS: comma-separated list of allowed origins
-   CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+   ### CORS: comma-separated list of allowed origins
+      CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 
 ### Frontend Setup
 1. `cd frontend`
