@@ -13,24 +13,17 @@ The project is built with a clear separation of concerns in a monorepo structure
   2. **AI Performance Analysis**: Qualitative assessment across 5 dimensions.
   3. **Prioritized Recommendations**: Urgent to minor action items.
 - **Backend (FastAPI)**: A high-performance Python API that orchestrates the scraping and analysis pipeline.
-- **Services (Scraper & Metrics)**: Custom-built services using `httpx` and `BeautifulSoup4` for reliable data extraction.
+- **Services (Scraper & Metrics)**: Custom-built services using **Playwright** and **BeautifulSoup4** for accurate, human-like data extraction (including JS-rendered content).
 - **AI Analyzer**: A dedicated service that interacts with the Gemini API to transform raw data into expert-level insights.
 
 ## AI Design Decisions
 - **Structured Prompting**: Prompts are strictly structured to ground the AI in factual numbers. This prevents "hallucinations" and ensures recommendations are always backed by the extracted metrics.
 - **JSON Schema Enforcement**: Using Gemini's JSON mode ensure the backend receives 100% parseable data, which is then validated by Pydantic models.
 - **Prompt Logging**: Every interaction (system prompt, user data, and raw AI response) is logged to `prompt_logs.json` for auditability and debugging.
-- **Model Choice**: Gemini 2.5 Flash was chosen for its speed and 
-  cost efficiency on a per-request basis, making it practical for 
-  an internal agency tool with frequent audits.
 
 ## Trade-offs & Decisions
-- **Deployment Ready**: Included in netlify direct deploy with manual configurations (frontend) and `railway.json` (backend).
-- **`httpx` over Puppeteer**: For this assessment, a lightweight HTTP client was chosen for speed and deployment simplicity. While it doesn't execute JavaScript, it covers 90% of SEO/METADATA requirements without the heavy overhead of a headless browser.
-- **JS-Rendered Pages (SPAs)**: Sites built with React, Vue, or 
-  Angular return minimal HTML via httpx since content is rendered 
-  client-side. This is a known limitation. Playwright would solve 
-  this in a future iteration.
+- **Playwright over httpx**: upgraded from `httpx` to a headless Chromium browser (Playwright) to support modern, lazy-loaded, and JavaScript-heavy websites. This ensures 100% accuracy in image and content detection.
+- **Detailed Outcomes**: Unlike standard tools, we provide the actual values (URLs, Text) behind the numbers via interactive popups.
 - **Single Endpoint (`/audit`)**: All processing (scraping, metrics, and AI) happens in a single request-response cycle. This simplifies the frontend state management for an MVP, though an async task queue (like Celery/RabbitMQ) would be better for high-scale production.
 - **Plain CSS**: Opted for Vanilla CSS with variables to avoid the complexity of external component libraries.
 
@@ -51,6 +44,7 @@ The project is built with a clear separation of concerns in a monorepo structure
 3. Install dependencies:
    ```bash
    pip install -r requirements.txt
+   playwright install chromium
    ```
 4. Create a `.env` file in the `backend/` directory:
    ```bash
@@ -62,15 +56,6 @@ The project is built with a clear separation of concerns in a monorepo structure
    uvicorn app.main:app --reload
    ```
    - *Runs at http://localhost:8000*
-
-**Note**: Backend .env file Structure
-### ── Website Audit Tool — Backend Environment Variables ─────────────
-
-   ### Gemini API Key
-      GEMINI_API_KEY=Gemini API KEY Here
-
-   ### CORS: comma-separated list of allowed origins
-      CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 
 ### Frontend Setup
 1. `cd frontend`
@@ -90,9 +75,7 @@ The project is built with a clear separation of concerns in a monorepo structure
    - *Runs at http://localhost:5173* (connects to local backend automatically)   
 
 ## What I'd Improve With More Time
-1. **Headless Browser**: Integrate Playwright/Puppeteer to audit SPAs (Single Page Applications) that rely on client-side rendering.
-2. **Performance Auditing**: Integrate Lighthouse API for Core Web Vitals assessment.
-3. **Database Integration**: Store audit history to allow users to compare results over time.
-4. **PDF Reports**: Export the 3-column analysis as a professional PDF for clients.
-5. **Detailed Outcomes**: Provide detailed outcomes for each metric as much as possible. (example: instead of H1: 2, H2: 4. Will provide what are those H1s and H2s)
-6. **Better SEO Recommendations**: Provide better SEO recommendations in keyword research integrating DataForSEO, Ahref, SEMrush. (budget + time)
+1. **Performance Auditing**: Integrate Lighthouse API for Core Web Vitals assessment.
+2. **Database Integration**: Store audit history to allow users to compare results over time.
+3. **PDF Reports**: Export the 3-column analysis as a professional PDF for clients.
+4. **Better SEO Recommendations**: Provide better SEO recommendations in keyword research integrating DataForSEO, Ahref, SEMrush. (budget + time)

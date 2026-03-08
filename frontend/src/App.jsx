@@ -56,7 +56,7 @@ function App() {
             <span>AuditTool</span>
           </div>
           <div className="tagline" style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            Internal Agency Analysis v1.0
+            Internal Agency Analysis v2.0
           </div>
         </div>
       </header>

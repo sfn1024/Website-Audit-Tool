@@ -97,30 +97,42 @@ def extract_metrics(html: str, base_url: str) -> PageMetrics:
     word_count = len(visible_text.split())
 
     # ── Heading counts ───────────────────────────────────────────────────
+    h1s = [h.get_text(strip=True) for h in soup.find_all("h1")]
+    h2s = [h.get_text(strip=True) for h in soup.find_all("h2")]
+    h3s = [h.get_text(strip=True) for h in soup.find_all("h3")]
+    
     heading_counts = HeadingCounts(
-        h1=len(soup.find_all("h1")),
-        h2=len(soup.find_all("h2")),
-        h3=len(soup.find_all("h3")),
+        h1=len(h1s),
+        h2=len(h2s),
+        h3=len(h3s),
+        h1_list=h1s,
+        h2_list=h2s,
+        h3_list=h3s,
     )
 
     # ── CTA count ────────────────────────────────────────────────────────
+    cta_items = []
+    
     # Count all <button> elements
-    buttons = soup.find_all("button")
-    cta_count = len(buttons)
+    for btn in soup.find_all("button"):
+        text = btn.get_text(strip=True) or "[Icon Button]"
+        cta_items.append(text)
 
     # Count <a> tags that look like CTAs
     for a_tag in soup.find_all("a", href=True):
         if _is_cta_link(a_tag):
-            cta_count += 1
+            text = a_tag.get_text(strip=True) or "[Link Button]"
+            cta_items.append(text)
             
     # Count <div> and <span> tags with role="button"
     for tag in soup.find_all(["div", "span"], role="button"):
-        if _is_cta_link(tag): # Avoid double counting if already caught by other logic
-            cta_count += 1
+        if _is_cta_link(tag):
+            text = tag.get_text(strip=True) or "[Custom Button]"
+            cta_items.append(text)
 
     # ── Link counts (internal vs external) ───────────────────────────────
-    internal_links = 0
-    external_links = 0
+    internal_list = []
+    external_list = []
 
     for a_tag in soup.find_all("a", href=True):
         href = a_tag["href"].strip()
@@ -129,11 +141,16 @@ def extract_metrics(html: str, base_url: str) -> PageMetrics:
         absolute_url = urljoin(str(base_url), href)
         link_domain = urlparse(absolute_url).netloc
         if link_domain == base_domain:
-            internal_links += 1
+            internal_list.append(absolute_url)
         else:
-            external_links += 1
+            external_list.append(absolute_url)
 
-    links = LinkCounts(internal=internal_links, external=external_links)
+    links = LinkCounts(
+        internal=len(internal_list),
+        external=len(external_list),
+        internal_list=list(set(internal_list)), # Unique links only for the list
+        external_list=list(set(external_list)),
+    )
 
     # ── Image stats ──────────────────────────────────────────────────────
     img_tags = soup.find_all("img")
@@ -143,42 +160,38 @@ def extract_metrics(html: str, base_url: str) -> PageMetrics:
     
     clean_img_tags = []
     for img in img_tags:
-        # 1. Skip if inside <template> or <noscript>
         if any(p.name in excluded_parents for p in img.parents):
             continue
-        
-        # Get dimensions and attributes for filtering
         width = img.get("width", "").strip()
         height = img.get("height", "").strip()
         src = img.get("src", "").lower()
         style = img.get("style", "").lower()
-        
-        # 2. Skip tracking pixels (1x1 or 0x0)
         if width in ("0", "1") or height in ("0", "1"):
             continue
-            
-        # 3. Skip images with tracking keywords in URL
         if any(kw in src for kw in tracking_keywords):
             continue
-            
-        # 4. Skip hidden images
         if "display:none" in style.replace(" ", "") or "visibility:hidden" in style.replace(" ", ""):
             continue
-            
         clean_img_tags.append(img)
 
     total_images = len(clean_img_tags)
-    missing_alt = sum(
+    missing_alt_count = sum(
         1 for img in clean_img_tags
         if not img.get("alt", "").strip()
     )
+    with_alt_count = total_images - missing_alt_count
 
     missing_alt_pct = round(
-        (missing_alt / total_images * 100) if total_images > 0 else 0.0,
+        (missing_alt_count / total_images * 100) if total_images > 0 else 0.0,
         1,
     )
 
-    image_stats = ImageStats(total=total_images, missing_alt_pct=missing_alt_pct)
+    image_stats = ImageStats(
+        total=total_images,
+        with_alt=with_alt_count,
+        without_alt=missing_alt_count,
+        missing_alt_pct=missing_alt_pct
+    )
 
     # ── Meta tags ────────────────────────────────────────────────────────
     title_tag = soup.find("title")
@@ -196,7 +209,8 @@ def extract_metrics(html: str, base_url: str) -> PageMetrics:
     return PageMetrics(
         word_count=word_count,
         heading_counts=heading_counts,
-        cta_count=cta_count,
+        cta_count=len(cta_items),
+        cta_list=cta_items,
         links=links,
         images=image_stats,
         meta=meta,

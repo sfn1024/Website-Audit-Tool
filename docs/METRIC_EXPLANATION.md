@@ -5,52 +5,41 @@ This document provides a simple, technical explanation of how the system achieve
 ---
 
 ## 🏗️ Step 1: The Scraper (scraper.py)
-Before any counting happens, the **Scraper** fetches the data using a real Chromium browser (Playwright).
+Before any counting happens, the **Scraper** fetches the data using a real Chromium browser (**Playwright**).
 
-1. **Network Monitoring**: As the page loads, the scraper listens to every network request. It identifies and counts every unique image asset (including CSS background images and SVGs) loaded by the browser.
-2. **Infinite Scroll**: It "walks" down the page in 800-pixel steps with pauses. This ensures every lazy-loaded image and dynamic section is fully triggered and rendered.
-3. **Capture**: Once the network is idle and scrolling is complete, it extracts the fully-rendered source code (HTML) and the total "Network Image Count."
+1. **JavaScript Support**: Unlike basic scrapers, Playwright allows us to render complex React/Vue sites and triggered lazy-loaded content.
+2. **Infinite Scroll**: It "walks" down the page in 800-pixel steps with pauses. This ensures every image and sub-section is fully rendered.
+3. **Capture**: Once the page is stable, it extracts the final HTML for processing.
 
 ---
 
 ## 🛠️ Step 2: The Metrics Engine (metrics.py)
 The Metrics engine uses **BeautifulSoup** to parse the HTML with advanced logic for high accuracy:
 
-### 1. Word Count (High Accuracy)
-- **What it does**: Extracts only the meaningful text that a human actually reads.
+### 1. Word Count (Rendered Content)
 - **Logic**: 
-  - It creates a "Clean Soul" of the page by **removing** boilerplate like navigation (`<nav>`), headers, footers, sidebars (`<aside>`), and non-visible tags like `<script>` or `<style>`.
-  - It also deletes elements hidden via accessibility tags (`aria-hidden="true"`) or inline CSS (`display:none`, `visibility:hidden`).
-  - Finally, it counts the words in the remaining "pure" content.
+  - It removes non-visual elements like `<script>`, `<style>`, and `<template>`.
+  - It filters out elements hidden via accessibility tags (`aria-hidden="true"`) or inline CSS (`display:none`).
+  - It counts the remaining text that a human user would actually see.
 
-### 2. Heading Counts (H1, H2, H3)
-- **What it does**: Counts the structural headings used for content hierarchy.
-- **Logic**: It searches the document for `<h1>`, `<h2>`, and `<h3>` tags and returns the exact count for each level.
+### 2. Heading Breakdown (H1, H2, H3)
+- **Logic**: Captures both the **Count** and the **Actual Text** of headings.
+- **Interactive**: You can click the **(i)** icon in the dashboard to see exactly what those headings say.
 
-### 3. CTA (Call to Action) Count
-- **What it does**: Detects elements designed to drive user conversions.
+### 3. CTA (Call to Action) Discovery
 - **Logic**: 
-  - **Buttons**: Every `<button>` tag and any element (`div`, `span`, `a`) with a `role="button"` attribute is counted.
-  - **Text Heuristics**: It scans links for 25+ specific "action" phrases (e.g., "Get Started," "Book a Call," "See Pricing").
-  - **Contact Logic**: Any link containing "contact" in its address is automatically identified as a CTA.
+  - **Buttons**: Every `<button>` tag and `role="button"` attribute.
+  - **Action Heuristics**: Scans for 25+ specific conversion phrases (e.g., "Get Started," "Book Now").
 
-### 4. Internal vs. External Links
-- **What it does**: Categorizes links based on their destination.
-- **Logic**: It compares every link's domain to your site's domain. If they match, it's categorized as Internal; otherwise, it's External. Helper links like `mailto:` are ignored.
+### 4. Link Mapping (Internal vs. External)
+- **Logic**: Categorizes links based on their destination. 
+- **Interactive**: The **(i)** icon reveals the full list of URLs found, helping you track where your traffic is going.
 
-### 5. Image Count (Tag-Based)
-- **What it does**: Counts every rendered image element on the page.
+### 5. Image Count (Visible Media)
+- **What it does**: Counts every actual image element while ignoring "noise."
 - **Logic**: 
-  - It searches the HTML for all `<img>` tags.
-  - **Exclusion**: It automatically ignores images hidden inside `<template>` or `<noscript>` tags, as these are not visible to the user.
-- **Limitations**: It currently focuses on actual `<img>` elements and intentionally ignores CSS background images and SVGs for maximum accuracy across different site types.
+  - **Filters**: It automatically ignores tracking pixels (1x1), hidden assets, and template code.
+  - **Breakdown**: It shows you exactly how many images exist and how many have proper **Alt Text**.
 
-### 6. Missing Alt Text Percentage
-- **What it does**: Measures how many images are missing descriptions for accessibility.
-- **Logic**: 
-  - It checks all rendered images found in Step 5 for the `alt` attribute.
-  - **Calculation**: (Images Missing Alt / Total Rendered Images) × 100.
-
-### 7. Meta Title & Description
-- **What it does**: Extracts the snippets shown in Search Engine results.
-- **Logic**: It looks for the `<title>` tag and the specific `<meta name="description">` tag inside the page's head section.
+### 6. Meta Title & Description
+- **Logic**: Extracts the exact title and description as they would appear in Google Search results, providing length counts for SEO optimization.

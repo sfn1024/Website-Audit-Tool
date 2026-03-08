@@ -53,9 +53,9 @@ Assessment-2/
 │   │   │   └── audit.py          # /api/audit endpoint
 │   │   └── services/
 │   │       ├── __init__.py
-│   │       ├── scraper.py        # URL fetching and HTML retrieval
-│   │       ├── metrics.py        # Factual metrics extraction from HTML
-│   │       └── analyzer.py       # Gemini 2.5 Flash integration
+│   │       ├── scraper.py        # Playwright-based URL scraping
+│   │       ├── metrics.py        # Factual metrics extraction + detailed lists
+│   │       └── ai_analyzer.py    # Gemini 2.5 Flash integration
 │   ├── requirements.txt          # Python dependencies
 │   ├── .env.example              # Template for environment variables
 │   └── .env                      # Local env vars (gitignored)
@@ -69,18 +69,13 @@ Assessment-2/
 │   ├── src/
 │   │   ├── main.jsx              # React DOM mount
 │   │   ├── App.jsx               # Root component, routing (if any)
-│   │   ├── index.css             # Global styles, CSS variables, reset
+│   │   ├── index.css             # Design system and modal styles
 │   │   ├── components/
 │   │   │   ├── UrlInput.jsx      # URL input form
 │   │   │   ├── UrlInput.css
-│   │   │   ├── AuditReport.jsx   # Full audit result display
-│   │   │   ├── AuditReport.css
-│   │   │   ├── MetricsCard.jsx   # Individual metric display card
-│   │   │   ├── MetricsCard.css
-│   │   │   ├── InsightSection.jsx # AI insight category display
-│   │   │   ├── InsightSection.css
-│   │   │   ├── Loader.jsx        # Loading state / skeleton
-│   │   │   └── Loader.css
+│   │   │   ├── MetricsDisplay.jsx   # Metrics with interactive detail popups
+│   │   │   ├── InsightsDisplay.jsx  # AI insight categories
+│   │   │   └── RecommendationsList.jsx # Prioritized action items
 │   │   └── utils/
 │   │       └── api.js            # Fetch wrapper for /api/audit
 │   └── .env                      # VITE_API_URL (gitignored)
@@ -107,90 +102,47 @@ Assessment-2/
 | ----- | ------ | -------- | ------------------------------------------------ |
 | `url` | string | ✅        | Must be a valid HTTP/HTTPS URL, max 2048 chars   |
 
-#### Success Response — `200 OK`
+#### Response Schema Overview
 
 ```json
 {
-  "url": "https://example.com/landing-page",
-  "scraped_at": "2026-03-05T12:00:00Z",
+  "url": "https://example.com",
+  "scraped_at": "ISO8601 Timestamp",
   "metrics": {
     "word_count": 1245,
     "heading_counts": {
-      "h1": 1,
-      "h2": 5,
-      "h3": 8
+      "h1": 1, "h2": 5, "h3": 8,
+      "h1_list": ["Main Headline"],
+      "h2_list": ["Section 1", "Section 2"...]
     },
     "cta_count": 4,
+    "cta_list": ["Get Started", "Learn More"...],
     "links": {
-      "internal": 12,
-      "external": 7
+      "internal": 12, "external": 7,
+      "internal_list": ["URL 1", "URL 2"...],
+      "external_list": ["External 1"...]
     },
     "images": {
       "total": 9,
+      "with_alt": 6,
+      "without_alt": 3,
       "missing_alt_pct": 33.3
     },
     "meta": {
-      "title": "Example — Best Landing Page",
-      "description": "A great landing page for your needs.",
-      "title_length": 34,
-      "description_length": 42
+      "title": "Example Title",
+      "description": "Example Desc",
+      "title_length": 13,
+      "description_length": 12
     }
   },
-  "ai_analysis": {
-    "seo_structure": {
-      "score": "Good",
-      "summary": "The page has a proper H1 and logical heading hierarchy...",
-      "details": ["Only one H1 tag present — correct.", "H2s used for major sections..."]
-    },
-    "messaging_clarity": {
-      "score": "Needs Improvement",
-      "summary": "The value proposition is buried below the fold...",
-      "details": ["Headline is vague...", "Subheadline restates the headline..."]
-    },
-    "cta_usage": {
-      "score": "Good",
-      "summary": "4 CTAs found with reasonable placement...",
-      "details": ["Primary CTA is above the fold...", "Consider differentiating secondary CTAs..."]
-    },
-    "content_depth": {
-      "score": "Moderate",
-      "summary": "1245 words is adequate for a landing page...",
-      "details": ["Content covers features but lacks social proof...", "FAQ section is missing..."]
-    },
-    "ux_structural_concerns": {
-      "score": "Needs Improvement",
-      "summary": "33% of images lack alt text, harming accessibility...",
-      "details": ["Add descriptive alt text to all images...", "Consider lazy-loading below-fold images..."]
-    },
+  "insights": {
+    "seo_analysis": "...",
     "recommendations": [
-      {
-        "priority": 1,
-        "title": "Add alt text to all images",
-        "description": "33% of images are missing alt text. This hurts SEO and accessibility."
-      },
-      {
-        "priority": 2,
-        "title": "Strengthen the hero headline",
-        "description": "The current H1 is generic. Make it specific to the value proposition."
-      },
-      {
-        "priority": 3,
-        "title": "Add social proof section",
-        "description": "The page lacks testimonials, case studies, or trust badges."
-      }
+      { "priority": 1, "title": "...", "reasoning": "...", "action": "..." }
     ]
   }
 }
 ```
-
-#### Error Responses
-
-| Status | Body                                                     | Scenario                            |
-| ------ | -------------------------------------------------------- | ----------------------------------- |
-| `422`  | `{ "detail": "Invalid URL format" }`                     | Malformed URL                       |
-| `400`  | `{ "detail": "Unable to fetch the URL" }`                | Connection error, DNS failure, etc. |
-| `408`  | `{ "detail": "Request timed out while fetching the URL" }` | Scrape exceeds timeout threshold  |
-| `500`  | `{ "detail": "AI analysis failed" }`                     | Gemini API error                    |
 
 ---
 
@@ -199,63 +151,19 @@ Assessment-2/
 The backend is split into **three isolated service modules**, each with a single responsibility. They communicate through well-defined Python data models (Pydantic).
 
 ### 4.1 `scraper.py` — URL Fetching
+- **Engine**: Playwright (Headless Chromium).
+- **Features**: Incremental 800px scrolling, navigation timeout (60s), network-idle fallback.
+- **Accuracy**: Trigger lazy-loaded content perfectly.
 
-**Responsibility:** Accept a URL, fetch the raw HTML, handle network errors.
+### 4.2 `metrics.py` — Factual Metrics
+- **Logic**: BeautifulSoup parsing.
+- **Detailed Outcomes**: Now captures the actual content of headings, URLs of links, and labels of CTAs.
+- **Image Filtering**: Excludes 1x1 tracking pixels, hidden assets, and template/noscript blocks.
 
-| Concern              | Approach                                                               |
-| -------------------- | ---------------------------------------------------------------------- |
-| HTTP client          | `httpx` (async-native, timeout support)                                |
-| User-Agent           | Rotate a realistic User-Agent string to avoid bot blocks               |
-| Timeout              | 15-second hard timeout for the HTTP request                            |
-| Redirects            | Follow up to 5 redirects                                               |
-| Encoding             | Detect charset from headers/meta, fallback to `utf-8`                  |
-| Error handling       | Raise custom `ScrapeError` with descriptive message                    |
-
-```python
-# Signature
-async def scrape_url(url: str) -> ScrapeResult:
-    """Returns ScrapeResult(html=str, final_url=str, status_code=int)"""
-```
-
-### 4.2 `metrics.py` — Factual Metrics Extraction
-
-**Responsibility:** Parse HTML with BeautifulSoup, extract all factual metrics. **No AI involved here — purely deterministic.**
-
-| Metric                  | Extraction Logic                                                            |
-| ----------------------- | --------------------------------------------------------------------------- |
-| Word count              | Strip all tags → split on whitespace → count                                |
-| H1 / H2 / H3 counts    | `soup.find_all('h1')`, etc.                                                 |
-| CTA count               | Count `<button>` elements + `<a>` tags with CTA-like classes/text patterns  |
-| Internal vs external    | Compare each `<a href>` domain against the input URL's domain               |
-| Image count             | `soup.find_all('img')`                                                      |
-| Images missing alt (%)  | Filter images where `alt` attr is missing or empty → percentage             |
-| Meta title              | `soup.find('title')` → `.string`                                            |
-| Meta description        | `soup.find('meta', attrs={'name': 'description'})` → `['content']`         |
-
-```python
-# Signature
-def extract_metrics(html: str, base_url: str) -> PageMetrics:
-    """Returns a PageMetrics Pydantic model with all factual data."""
-```
-
-### 4.3 `analyzer.py` — Gemini AI Integration
-
-**Responsibility:** Build a structured prompt from the metrics + page content, send to Gemini 2.5 Flash, parse the structured response.
-
-| Concern               | Approach                                                                    |
-| ---------------------- | --------------------------------------------------------------------------- |
-| SDK                    | `google-generativeai` (official Gemini Python SDK)                         |
-| Prompt design          | System prompt defines the audit persona; user message includes metrics JSON + truncated page text |
-| Structured output      | Instruct Gemini to respond in a strict JSON schema; parse with Pydantic     |
-| Content truncation     | Truncate page text to ~8,000 words to stay within token limits              |
-| Retry logic            | Retry up to 2 times on transient Gemini API errors                          |
-| Error handling         | Raise custom `AnalysisError` on failure after retries                       |
-
-```python
-# Signature
-async def analyze_page(metrics: PageMetrics, page_text: str) -> AIAnalysis:
-    """Returns an AIAnalysis Pydantic model with all AI insights."""
-```
+### 4.3 `ai_analyzer.py` — Gemini AI
+- **Model**: Gemini 2.5 Flash.
+- **Grounding**: Strict enforcement of metric-based reasoning in the prompt.
+- **Logging**: Every request/response is recorded in `prompt_logs.json`.
 
 ### 4.4 `audit.py` (Router) — Orchestration
 
@@ -399,7 +307,7 @@ User enters URL
 └───────┬──────────┘           │
         │ AIAnalysis           │
         ▼                      │
-┌──────────────────┐           │
+┌──────────────────┐
 │  Combine into    │◄──────────┘
 │  AuditResponse   │
 └───────┬──────────┘

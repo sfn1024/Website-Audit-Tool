@@ -18,21 +18,28 @@ class AuditRequest(BaseModel):
 # ── Metrics sub-models ───────────────────────────────────────────────────────
 
 class HeadingCounts(BaseModel):
-    """Count of each heading level on the page."""
+    """Count and lists of headings on the page."""
     h1: int
     h2: int
     h3: int
+    h1_list: list[str] = []
+    h2_list: list[str] = []
+    h3_list: list[str] = []
 
 
 class LinkCounts(BaseModel):
-    """Internal vs external link breakdown."""
+    """Internal vs external link breakdown with lists."""
     internal: int
     external: int
+    internal_list: list[str] = []
+    external_list: list[str] = []
 
 
 class ImageStats(BaseModel):
-    """Image statistics including accessibility gaps."""
+    """Image statistics including specific alt text counts."""
     total: int
+    with_alt: int = 0
+    without_alt: int = 0
     missing_alt_pct: float
 
 
@@ -49,6 +56,7 @@ class PageMetrics(BaseModel):
     word_count: int
     heading_counts: HeadingCounts
     cta_count: int
+    cta_list: list[str] = []
     links: LinkCounts
     images: ImageStats
     meta: MetaInfo
