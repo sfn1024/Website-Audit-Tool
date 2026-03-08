@@ -1,15 +1,6 @@
-"""
-Scraper module — fetches raw HTML from a given URL.
+import asyncio
+from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
 
-Handles:
-- Async HTTP requests with timeout
-- Redirect following (capped at 5)
-- Content-Type validation (rejects non-HTML)
-- HTML size capping (5 MB max)
-- Encoding detection with utf-8 fallback
-"""
-
-import httpx
 from app.config import settings
 
 
@@ -22,105 +13,93 @@ class ScrapeError(Exception):
         super().__init__(self.message)
 
 
-# Realistic User-Agent to reduce bot-blocking
-USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/120.0.0.0 Safari/537.36"
-)
-
-
-async def _fetch(url: str, verify_ssl: bool = True):
+async def scrape_url(url: str) -> dict:
     """
-    Internal helper — performs the actual HTTP GET request.
-
-    Returns the httpx.Response on success, or None if an SSL error occurs
-    (so the caller can retry without SSL verification).
-
-    Raises ScrapeError for non-SSL failures (timeout, redirects, network).
-    """
-    try:
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(settings.scrape_timeout),
-            follow_redirects=True,
-            max_redirects=settings.max_redirects,
-            headers={"User-Agent": USER_AGENT},
-            verify=verify_ssl,
-        ) as client:
-            return await client.get(str(url))
-
-    except httpx.TimeoutException:
-        raise ScrapeError(
-            "Request timed out while fetching the URL.",
-            status_code=408,
-        )
-    except httpx.TooManyRedirects:
-        raise ScrapeError(
-            "Too many redirects — possible redirect loop.",
-            status_code=400,
-        )
-    except Exception as e:
-        # If it's an SSL-related error, return None so caller can retry
-        error_str = str(e).lower()
-        if "ssl" in error_str or "certificate" in error_str:
-            return None
-        raise ScrapeError(
-            f"Unable to fetch the URL: {str(e)}",
-            status_code=400,
-        )
-
-
-async def scrape_url(url: str) -> str:
-    """
-    Fetch the raw HTML content of a URL.
-
-    Args:
-        url: The URL to scrape (must be http/https).
+    Fetch the fully rendered HTML content and network stats of a URL using Playwright.
+    
+    This handles:
+    - JavaScript execution
+    - Network request monitoring (for accurate image counts)
+    - Network idle waiting
+    - Automated scrolling for lazy-loaded content
 
     Returns:
-        The HTML content as a string.
-
-    Raises:
-        ScrapeError: If the URL is unreachable, times out,
-                     returns non-HTML, or exceeds size limits.
+        A dictionary containing "html" (str) and "network_image_count" (int).
     """
-    response = await _fetch(url, verify_ssl=True)
-    if response is None:
-        # SSL failed — retry without verification (common in dev environments)
-        response = await _fetch(url, verify_ssl=False)
+    image_urls = set()
 
-    if response is None:
-        raise ScrapeError("Unable to fetch the URL.", status_code=400)
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        try:
+            # Create a context with a realistic User-Agent
+            context = await browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
+            page = await context.new_page()
 
-    # --- Validate the response ---
+            # Monitor network requests to count images accurately
+            async def handle_request(request):
+                if request.resource_type == "image":
+                    image_urls.add(request.url)
 
-    # Check for HTTP errors (4xx, 5xx)
-    if response.status_code >= 400:
-        raise ScrapeError(
-            f"The server returned HTTP {response.status_code}.",
-            status_code=400,
-        )
+            page.on("request", handle_request)
 
-    # Ensure the response is HTML, not a PDF/image/etc.
-    content_type = response.headers.get("content-type", "")
-    if "text/html" not in content_type and "application/xhtml" not in content_type:
-        raise ScrapeError(
-            f"The URL returned non-HTML content (Content-Type: {content_type}).",
-            status_code=400,
-        )
+            # Navigate with a specific timeout
+            try:
+                # 1. Initial navigation (wait for DOM)
+                await page.goto(str(url), wait_until="domcontentloaded", timeout=60000)
+                
+                # 2. Try to wait for network to be idle, but fall back if it takes too long
+                try:
+                    await page.wait_for_load_state("networkidle", timeout=60000)
+                except PlaywrightTimeoutError:
+                    print(f"[WARN] Networkidle timed out for {url}, proceeding with DOM content.")
+                    
+            except PlaywrightTimeoutError:
+                raise ScrapeError("Request timed out while fetching the URL (60s limit).", status_code=408)
+            except Exception as e:
+                raise ScrapeError(f"Unable to fetch the URL: {str(e)}", status_code=400)
 
-    # Cap HTML size to prevent processing massive pages
-    if len(response.content) > settings.max_html_size:
-        raise ScrapeError(
-            "The page is too large to process (exceeds 5 MB).",
-            status_code=400,
-        )
+            # --- Handle Lazy-loaded Content ---
+            # Scroll in steps of 800px to trigger all lazy-loaded images
+            current_pos = 0
+            while True:
+                # Get current scroll height
+                total_height = await page.evaluate("document.body.scrollHeight")
+                if current_pos >= total_height:
+                    break
+                
+                current_pos += 800
+                await page.evaluate(f"window.scrollTo(0, {current_pos})")
+                await asyncio.sleep(0.5) # Wait for images to trigger
 
-    # Decode the HTML — httpx handles encoding detection automatically,
-    # but we fallback to utf-8 if it fails
-    try:
-        html = response.text
-    except Exception:
-        html = response.content.decode("utf-8", errors="replace")
+            # Wait 2 seconds at the bottom for final loads
+            await asyncio.sleep(2)
 
-    return html
+            # Scroll back to top
+            await page.evaluate("window.scrollTo(0, 0)")
+            
+            # Final settle time for images/scripts to render
+            await asyncio.sleep(2)
+
+            # Extract the fully rendered HTML
+            html = await page.content()
+
+            # --- Basics Validations ---
+            if not html or len(html.strip()) == 0:
+                raise ScrapeError("The page returned empty content.", status_code=400)
+
+            # Cap HTML size to prevent processing massive pages
+            if len(html.encode("utf-8")) > settings.max_html_size:
+                raise ScrapeError(
+                    "The page is too large to process (exceeds 15 MB).",
+                    status_code=400,
+                )
+
+            return {
+                "html": html,
+                "network_image_count": len(image_urls)
+            }
+
+        finally:
+            await browser.close()

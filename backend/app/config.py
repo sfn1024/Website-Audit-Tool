@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     # Scraper settings
     scrape_timeout: int = 15  # seconds
     max_redirects: int = 5
-    max_html_size: int = 5 * 1024 * 1024  # 5 MB
+    max_html_size: int = 15 * 1024 * 1024  # 15 MB
 
     class Config:
         env_file = ".env"

@@ -41,7 +41,8 @@ async def audit_url(request: AuditRequest):
 
     # ── Step 1: Scrape the page ──────────────────────────────────────────
     try:
-        html = await scrape_url(str(request.url))
+        scrape_result = await scrape_url(str(request.url))
+        html = scrape_result["html"]
     except ScrapeError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
 
